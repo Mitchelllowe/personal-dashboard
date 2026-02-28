@@ -1,13 +1,25 @@
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
+  const [error, setError] = useState(null)
+
+  // Surface any OAuth error Supabase passes back in the URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const err = params.get('error_description') || params.get('error')
+    if (err) setError(decodeURIComponent(err))
+  }, [])
+
   async function signInWithGitHub() {
-    await supabase.auth.signInWithOAuth({
+    setError(null)
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
         redirectTo: window.location.origin,
       },
     })
+    if (error) setError(error.message)
   }
 
   return (
@@ -20,6 +32,9 @@ export default function Login() {
         >
           Sign in with GitHub
         </button>
+        {error && (
+          <p className="text-sm text-red-400 max-w-xs mx-auto">{error}</p>
+        )}
       </div>
     </main>
   )
