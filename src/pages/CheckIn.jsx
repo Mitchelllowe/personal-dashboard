@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import BibleSelector from '../components/BibleSelector'
 
 const DEFAULT_ZIP = '02163'
 
@@ -9,10 +10,13 @@ export default function CheckIn() {
   const [zipCode, setZipCode] = useState(DEFAULT_ZIP)
   const [editingZip, setEditingZip] = useState(false)
   const [pendingZip, setPendingZip] = useState('')
+  const [bibleRead, setBibleRead] = useState(false)
+  const [bibleSelections, setBibleSelections] = useState([])
   const [saving, setSaving] = useState(false)
   const navigate = useNavigate()
 
   const type = new Date().getHours() < 12 ? 'morning' : 'evening'
+  const isEvening = type === 'evening'
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -49,7 +53,7 @@ export default function CheckIn() {
       setZipCode(zip)
       setEditingZip(false)
     } catch {
-      // silently fail — zip stays unchanged
+      // silently fail
     }
   }
 
@@ -61,7 +65,14 @@ export default function CheckIn() {
     await supabase
       .from('check_ins')
       .upsert(
-        { user_id: session.user.id, date: today, type, mood_rating: rating },
+        {
+          user_id:          session.user.id,
+          date:             today,
+          type,
+          mood_rating:      rating,
+          bible_read:       isEvening ? bibleRead : null,
+          bible_selections: isEvening && bibleRead ? bibleSelections : null,
+        },
         { onConflict: 'user_id,date,type' }
       )
 
@@ -69,7 +80,7 @@ export default function CheckIn() {
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-8">
+    <main className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col items-center justify-start p-8 pt-16">
       <div className="w-full max-w-sm space-y-14">
 
         <h1 className="text-2xl font-semibold text-center tracking-tight">
@@ -100,6 +111,43 @@ export default function CheckIn() {
             <span>10</span>
           </div>
         </div>
+
+        {/* Bible reading — evening only */}
+        {isEvening && (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-neutral-300">Did you read your Bible?</span>
+              <div className="flex gap-2">
+                {['No', 'Yes'].map(opt => {
+                  const active = opt === 'Yes' ? bibleRead : !bibleRead
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => { setBibleRead(opt === 'Yes'); if (opt === 'No') setBibleSelections([]) }}
+                      className={`px-4 py-1.5 rounded-lg text-sm transition-colors ${
+                        active
+                          ? 'bg-neutral-700 text-neutral-100'
+                          : 'bg-neutral-900 text-neutral-500 hover:text-neutral-300'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {bibleRead && (
+              <div className="space-y-2">
+                <p className="text-xs text-neutral-500">Select books and chapters</p>
+                <div className="max-h-72 overflow-y-auto rounded-xl bg-neutral-900 p-3 space-y-1">
+                  <BibleSelector value={bibleSelections} onChange={setBibleSelections} />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Zip code */}
         <div className="text-center">
