@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
 import CheckIn from './pages/CheckIn'
+import ScriptureReading from './pages/ScriptureReading'
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/check-in" element={<CheckIn />} />
+        <Route path="/scripture" element={<ScriptureReading />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
     </Routes>
