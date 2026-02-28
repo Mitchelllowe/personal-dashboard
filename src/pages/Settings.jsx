@@ -86,7 +86,7 @@ export default function Settings() {
                 maxLength={5}
                 value={zipCode}
                 onChange={e => { setZipCode(e.target.value); setStatus(null) }}
-                placeholder="02162"
+                placeholder="02163"
                 className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2.5 text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition-colors"
               />
             </div>

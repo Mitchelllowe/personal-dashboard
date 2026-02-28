@@ -5,9 +5,9 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-// Default location: 02162 (Newton, MA)
-const DEFAULT_LAT = 42.33
-const DEFAULT_LON = -71.21
+// Default location: 02163 (Allston/Brighton, MA)
+const DEFAULT_LAT = 42.37
+const DEFAULT_LON = -71.12
 
 async function getLocation(): Promise<{ lat: number; lon: number }> {
   const { data } = await supabase

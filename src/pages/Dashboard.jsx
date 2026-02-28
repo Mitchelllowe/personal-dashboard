@@ -35,7 +35,12 @@ export default function Dashboard() {
             </button>
           </div>
         </header>
-        <p className="text-neutral-400">Welcome, {session?.user?.email}</p>
+        <Link
+          to="/check-in"
+          className="inline-block px-5 py-2.5 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-sm font-medium transition-colors"
+        >
+          Check in
+        </Link>
       </div>
     </main>
   )
