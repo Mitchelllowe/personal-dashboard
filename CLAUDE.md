@@ -73,4 +73,34 @@ These apply to every feature without exception:
 
 ## Commands
 
-_To be added once the project is scaffolded (e.g., `npm run dev`, `npm run build`, `npm run lint`)._
+```bash
+npm run dev      # start local dev server
+npm run build    # production build
+npm run preview  # preview production build locally
+npm run lint     # run ESLint
+```
+
+Database migrations:
+```bash
+npx supabase db execute --file supabase/migrations/<filename>.sql
+```
+
+Edge functions (local):
+```bash
+npx supabase functions serve fetch-market-data --env-file supabase/functions/.env
+```
+
+## Project Structure
+
+```
+src/
+  lib/supabase.js          # Supabase client (imported everywhere)
+  components/
+    ProtectedRoute.jsx     # Checks session; redirects to /login if unauthenticated
+  pages/
+    Login.jsx              # GitHub OAuth sign-in
+    Dashboard.jsx          # Main authenticated view
+supabase/
+  functions/               # Edge Functions (server-side, Deno runtime)
+  migrations/              # SQL migration files — all schema changes go here
+```
