@@ -390,3 +390,6 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 [functions.fetch-market-data]
 # verify_jwt = false allows pg_cron to invoke this function without user auth
 verify_jwt = false
+
+[functions.fetch-weather-data]
+verify_jwt = false
