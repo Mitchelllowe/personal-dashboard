@@ -10,7 +10,7 @@ function darken(hex, amount) {
   return `rgb(${Math.round(r * (1 - amount))},${Math.round(g * (1 - amount))},${Math.round(b * (1 - amount))})`
 }
 
-export function ActivityHeatmap({ title, activeDates, color }) {
+export function ActivityHeatmap({ title, activeDates, color, onDateClick }) {
   const today = new Date()
 
   // Always show exactly 28 days ending today — no future cells, no alignment tricks
@@ -28,19 +28,97 @@ export function ActivityHeatmap({ title, activeDates, color }) {
     <Card title={title}>
       <div className="grid grid-cols-7 gap-1">
         {cells.map((cell, i) => (
-          <div
+          <button
             key={i}
-            className="aspect-square rounded-sm flex items-center justify-center"
+            onClick={() => onDateClick?.(cell.dateStr)}
+            className="aspect-square rounded-sm flex items-center justify-center focus:outline-none focus:ring-1 focus:ring-neutral-500 transition-opacity hover:opacity-80"
             style={{
               backgroundColor: cell.active ? color : '#111111',
               border: `1px solid ${color}`,
               boxSizing: 'border-box',
-              fontSize: 9,
+              fontSize: 14,
               fontVariantNumeric: 'tabular-nums',
               color: cell.active ? activeText : inactiveText,
+              cursor: 'pointer',
             }}
           >
             {cell.day}
+          </button>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
+const MORNING_COLOR = '#60a5fa'
+const EVENING_COLOR = '#c084fc'
+
+export function MoodGrid({ data }) {
+  const today = new Date()
+
+  const byDate = {}
+  for (const row of data) byDate[row.date] = row
+
+  const cells = Array.from({ length: 28 }, (_, i) => {
+    const d = new Date(today)
+    d.setDate(today.getDate() - 27 + i)
+    const dateStr = d.toLocaleDateString('en-CA')
+    const entry = byDate[dateStr] ?? {}
+    return { day: d.getDate(), morning: entry.morning ?? null, evening: entry.evening ?? null }
+  })
+
+  return (
+    <Card title="Daily Mood">
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((cell, i) => (
+          <div
+            key={i}
+            style={{
+              backgroundColor: '#111111',
+              border: '1px solid #1e1e1e',
+              borderRadius: 3,
+              position: 'relative',
+              aspectRatio: '3/4',
+            }}
+          >
+            <span style={{
+              position: 'absolute',
+              top: 3,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: 12,
+              color: '#737373',
+              fontVariantNumeric: 'tabular-nums',
+              whiteSpace: 'nowrap',
+            }}>
+              {cell.day}
+            </span>
+            {cell.morning != null && (
+              <span style={{
+                position: 'absolute',
+                bottom: 3,
+                left: 4,
+                fontSize: 15,
+                color: MORNING_COLOR,
+                fontVariantNumeric: 'tabular-nums',
+                fontWeight: 600,
+              }}>
+                {cell.morning}
+              </span>
+            )}
+            {cell.evening != null && (
+              <span style={{
+                position: 'absolute',
+                bottom: 3,
+                right: 4,
+                fontSize: 15,
+                color: EVENING_COLOR,
+                fontVariantNumeric: 'tabular-nums',
+                fontWeight: 600,
+              }}>
+                {cell.evening}
+              </span>
+            )}
           </div>
         ))}
       </div>
