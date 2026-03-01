@@ -8,6 +8,7 @@ import {
   PrecipitationChart,
   VOOChart,
   VXXChart,
+  ActivityHeatmap,
 } from '../components/Charts'
 
 export default function Dashboard() {
@@ -15,6 +16,8 @@ export default function Dashboard() {
   const [weather, setWeather] = useState([])
   const [market, setMarket] = useState({ VOO: [], VXX: [] })
   const [mood, setMood] = useState([])
+  const [scriptureDates, setScriptureDates] = useState(new Set())
+  const [personalDates, setPersonalDates] = useState(new Set())
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -23,26 +26,39 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function fetchData() {
-      const from = new Date()
-      from.setDate(from.getDate() - 30)
-      const fromDate = from.toLocaleDateString('en-CA')
+      const from30 = new Date()
+      from30.setDate(from30.getDate() - 30)
+      const fromDate30 = from30.toLocaleDateString('en-CA')
 
-      const [weatherRes, marketRes, checkInRes] = await Promise.all([
+      const from365 = new Date()
+      from365.setDate(from365.getDate() - 380)
+      const fromDate365 = from365.toLocaleDateString('en-CA')
+
+      const [weatherRes, marketRes, checkInRes, scriptureRes, personalRes] = await Promise.all([
         supabase
           .from('weather_snapshots')
           .select('date, feels_like_max_f, feels_like_min_f, precipitation_in, daylight_hours')
-          .gte('date', fromDate)
+          .gte('date', fromDate30)
           .order('date'),
         supabase
           .from('market_snapshots')
           .select('date, symbol, close')
-          .gte('date', fromDate)
+          .gte('date', fromDate30)
           .order('date'),
         supabase
           .from('check_ins')
           .select('date, type, mood_rating')
-          .gte('date', fromDate)
+          .gte('date', fromDate30)
           .order('date'),
+        supabase
+          .from('scripture_readings')
+          .select('read_at')
+          .gte('read_at', from365.toISOString()),
+        supabase
+          .from('personal_checkins')
+          .select('date')
+          .gte('date', fromDate365)
+          .eq('value', true),
       ])
 
       // Weather — already one row per day
@@ -65,6 +81,17 @@ export default function Dashboard() {
       }
       const moodData = Object.values(moodByDate).sort((a, b) => a.date.localeCompare(b.date))
       setMood(moodData)
+
+      // Scripture — extract local date from each timestamptz
+      const sSet = new Set(
+        (scriptureRes.data ?? []).map(r =>
+          new Date(r.read_at).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+        )
+      )
+      setScriptureDates(sSet)
+
+      // Personal — dates already stored as local date strings
+      setPersonalDates(new Set((personalRes.data ?? []).map(r => r.date)))
 
       setLoading(false)
     }
@@ -94,7 +121,7 @@ export default function Dashboard() {
         </header>
 
         {/* Actions */}
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <Link
             to="/check-in"
             className="px-5 py-2.5 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-sm font-medium transition-colors"
@@ -107,19 +134,31 @@ export default function Dashboard() {
           >
             Scripture Reading
           </Link>
+          <Link
+            to="/personal"
+            className="px-5 py-2.5 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-sm font-medium transition-colors"
+          >
+            Personal
+          </Link>
         </div>
 
-        {/* Charts */}
+        {/* Heatmaps + Charts */}
         {loading ? (
           <p className="text-sm text-neutral-600">Loading data…</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <MoodChart data={mood} />
-            <TemperatureChart data={weather} />
-            <DaylightChart data={weather} />
-            <PrecipitationChart data={weather} />
-            <VOOChart data={market} />
-            <VXXChart data={market} />
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <ActivityHeatmap title="Scripture Reading" activeDates={scriptureDates} color="#4ade80" />
+              <ActivityHeatmap title="Personal" activeDates={personalDates} color="#818cf8" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <MoodChart data={mood} />
+              <TemperatureChart data={weather} />
+              <DaylightChart data={weather} />
+              <PrecipitationChart data={weather} />
+              <VOOChart data={market} />
+              <VXXChart data={market} />
+            </div>
           </div>
         )}
 

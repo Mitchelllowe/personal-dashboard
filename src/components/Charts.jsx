@@ -3,6 +3,51 @@ import {
   Line, Bar, Area, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
 
+function darken(hex, amount) {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgb(${Math.round(r * (1 - amount))},${Math.round(g * (1 - amount))},${Math.round(b * (1 - amount))})`
+}
+
+export function ActivityHeatmap({ title, activeDates, color }) {
+  const today = new Date()
+
+  // Always show exactly 28 days ending today — no future cells, no alignment tricks
+  const cells = Array.from({ length: 28 }, (_, i) => {
+    const d = new Date(today)
+    d.setDate(today.getDate() - 27 + i)
+    const dateStr = d.toLocaleDateString('en-CA')
+    return { day: d.getDate(), dateStr, active: activeDates.has(dateStr) }
+  })
+
+  const inactiveText = darken(color, 0.3)
+  const activeText   = darken(color, 0.55)
+
+  return (
+    <Card title={title}>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((cell, i) => (
+          <div
+            key={i}
+            className="aspect-square rounded-sm flex items-center justify-center"
+            style={{
+              backgroundColor: cell.active ? color : '#111111',
+              border: `1px solid ${color}`,
+              boxSizing: 'border-box',
+              fontSize: 9,
+              fontVariantNumeric: 'tabular-nums',
+              color: cell.active ? activeText : inactiveText,
+            }}
+          >
+            {cell.day}
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 const GRID = '#262626'
 const AXIS = '#525252'
 
