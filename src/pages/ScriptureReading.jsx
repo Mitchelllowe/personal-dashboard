@@ -4,16 +4,12 @@ import { supabase } from '../lib/supabase'
 import BibleSelector from '../components/BibleSelector'
 
 function todayLocal() {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  return new Date().toLocaleDateString('en-CA')
 }
 
 function nowLocal() {
-  return new Date().toLocaleTimeString('en-CA', {
-    timeZone: 'America/New_York',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  })
+  const now = new Date()
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 }
 
 export default function ScriptureReading() {
@@ -32,11 +28,18 @@ export default function ScriptureReading() {
     // Combine date + time into a timestamptz (treat as Eastern time)
     const readAt = new Date(`${date}T${time}:00`).toISOString()
 
-    await supabase.from('scripture_readings').insert({
+    const { error } = await supabase.from('scripture_readings').insert({
       user_id:    session.user.id,
       read_at:    readAt,
       selections,
     })
+
+    if (error) {
+      console.error('[scripture] save error:', error)
+      alert(`Save failed: ${error.message}`)
+      setSaving(false)
+      return
+    }
 
     navigate('/')
   }

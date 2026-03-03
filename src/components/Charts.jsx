@@ -2,6 +2,7 @@ import {
   ResponsiveContainer, LineChart, BarChart, AreaChart,
   Line, Bar, Area, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
+import { BIBLE_BOOKS } from '../lib/bible'
 
 function darken(hex, amount) {
   const r = parseInt(hex.slice(1, 3), 16)
@@ -249,6 +250,95 @@ export function VXXChart({ data }) {
           <Line type="monotone" dataKey="VXX" stroke="#f87171" strokeWidth={1.5} dot={false} name="Close" connectNulls />
         </LineChart>
       </ResponsiveContainer>
+    </Card>
+  )
+}
+
+const OT_BOOKS = BIBLE_BOOKS.slice(0, 39)
+const NT_BOOKS = BIBLE_BOOKS.slice(39)
+const SCRIPTURE_ACCENT = '#4ade80'
+
+function bookAbbrev(name) {
+  if (name === 'Song of Solomon') return 'SoS'
+  const numbered = name.match(/^(\d)\s+(.+)/)
+  if (numbered) return `${numbered[1]}${numbered[2].slice(0, 2)}`
+  return name.slice(0, 3)
+}
+
+export function ScriptureCoverageMap({ readings }) {
+  const bookStats = {}
+  for (const r of readings) {
+    for (const sel of (r.selections ?? [])) {
+      if (!bookStats[sel.book]) bookStats[sel.book] = { chaptersRead: new Set(), lastReadAt: null }
+      for (const ch of (sel.chapters ?? [])) bookStats[sel.book].chaptersRead.add(ch)
+      const d = new Date(r.read_at)
+      if (!bookStats[sel.book].lastReadAt || d > bookStats[sel.book].lastReadAt)
+        bookStats[sel.book].lastReadAt = d
+    }
+  }
+
+  const now = new Date()
+
+  function BookTile({ book }) {
+    const stats = bookStats[book.name]
+    const chaptersRead = stats ? stats.chaptersRead.size : 0
+    const pct = chaptersRead / book.chapters
+    const daysSince = stats?.lastReadAt ? (now - stats.lastReadAt) / 86400000 : Infinity
+    const isRecent = daysSince <= 90
+
+    const bg     = pct > 0 && isRecent ? '#052e16' : '#111'
+    const border = pct === 0 ? '#1f1f1f' : isRecent ? SCRIPTURE_ACCENT : '#166534'
+    const text   = pct === 0 ? '#404040' : isRecent ? SCRIPTURE_ACCENT : '#4ade8066'
+    const bar    = isRecent ? SCRIPTURE_ACCENT : '#166534'
+
+    return (
+      <div
+        title={`${book.name} — ${chaptersRead}/${book.chapters} ch`}
+        style={{ backgroundColor: bg, border: `1px solid ${border}`, borderRadius: 4 }}
+        className="flex flex-col items-center justify-center py-1 gap-0.5 cursor-default select-none"
+      >
+        <span style={{ color: text, fontSize: 10, fontFamily: 'monospace', lineHeight: 1 }}>
+          {bookAbbrev(book.name)}
+        </span>
+        <div style={{ width: '80%', height: 2, backgroundColor: '#262626', borderRadius: 1 }}>
+          {pct > 0 && (
+            <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', backgroundColor: bar, borderRadius: 1 }} />
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Card title="Scripture Coverage">
+      <div className="space-y-4">
+        <div>
+          <p className="text-[10px] text-neutral-600 uppercase tracking-widest mb-2">Old Testament</p>
+          <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
+            {OT_BOOKS.map(book => <BookTile key={book.name} book={book} />)}
+          </div>
+        </div>
+        <div>
+          <p className="text-[10px] text-neutral-600 uppercase tracking-widest mb-2">New Testament</p>
+          <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
+            {NT_BOOKS.map(book => <BookTile key={book.name} book={book} />)}
+          </div>
+        </div>
+        <div className="flex items-center gap-5 pt-1 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: '#052e16', border: `1px solid ${SCRIPTURE_ACCENT}` }} />
+            <span className="text-[10px] text-neutral-500">read (&lt;90 days)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: '#111', border: '1px solid #166534' }} />
+            <span className="text-[10px] text-neutral-500">read (older)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: '#111', border: '1px solid #1f1f1f' }} />
+            <span className="text-[10px] text-neutral-500">not read</span>
+          </div>
+        </div>
+      </div>
     </Card>
   )
 }

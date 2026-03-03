@@ -11,6 +11,7 @@ import {
   VOOChart,
   VXXChart,
   ActivityHeatmap,
+  ScriptureCoverageMap,
 } from '../components/Charts'
 
 function fmtDate(dateStr) {
@@ -25,6 +26,7 @@ export default function Dashboard() {
   const [market, setMarket] = useState({ VOO: [], VXX: [] })
   const [mood, setMood] = useState([])
   const [scriptureDates, setScriptureDates] = useState(new Set())
+  const [scriptureReadings, setScriptureReadings] = useState([])
   const [personalDates, setPersonalDates] = useState(new Set())
   const [loading, setLoading] = useState(true)
 
@@ -66,7 +68,7 @@ export default function Dashboard() {
           .order('date'),
         supabase
           .from('scripture_readings')
-          .select('read_at')
+          .select('read_at, selections')
           .gte('read_at', from365.toISOString()),
         supabase
           .from('personal_checkins')
@@ -96,13 +98,11 @@ export default function Dashboard() {
       const moodData = Object.values(moodByDate).sort((a, b) => a.date.localeCompare(b.date))
       setMood(moodData)
 
-      // Scripture — extract local date from each timestamptz
-      const sSet = new Set(
-        (scriptureRes.data ?? []).map(r =>
-          new Date(r.read_at).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-        )
-      )
+      // Scripture — extract local date from each timestamptz using browser's local timezone
+      const scriptureData = scriptureRes.data ?? []
+      const sSet = new Set(scriptureData.map(r => new Date(r.read_at).toLocaleDateString('en-CA')))
       setScriptureDates(sSet)
+      setScriptureReadings(scriptureData)
 
       // Personal — dates already stored as local date strings
       setPersonalDates(new Set((personalRes.data ?? []).map(r => r.date)))
@@ -119,7 +119,10 @@ export default function Dashboard() {
 
   function openModal(type, date) {
     setEditModal({ type, date })
-    setModalTime('12:00')
+    const now = new Date()
+    const hh = String(now.getHours()).padStart(2, '0')
+    const mm = String(now.getMinutes()).padStart(2, '0')
+    setModalTime(`${hh}:${mm}`)
     setModalSelections([])
     setModalSaving(false)
   }
@@ -128,11 +131,17 @@ export default function Dashboard() {
     setModalSaving(true)
     const { data: { session } } = await supabase.auth.getSession()
     const readAt = new Date(`${editModal.date}T${modalTime}:00`).toISOString()
-    await supabase.from('scripture_readings').insert({
+    const { error } = await supabase.from('scripture_readings').insert({
       user_id: session.user.id,
       read_at: readAt,
       selections: modalSelections,
     })
+    if (error) {
+      console.error('[scripture] save error:', error)
+      alert(`Save failed: ${error.message}`)
+      setModalSaving(false)
+      return
+    }
     setScriptureDates(prev => new Set([...prev, editModal.date]))
     setEditModal(null)
   }
@@ -199,29 +208,40 @@ export default function Dashboard() {
           <p className="text-sm text-neutral-600">Loading data…</p>
         ) : (
           <div className="space-y-4">
+            {/* Row 1: Mood */}
             <div className="grid grid-cols-2 gap-4">
+              <MoodChart data={mood} />
+              <MoodGrid data={mood} />
+            </div>
+            {/* Row 2: Weather */}
+            <div className="grid grid-cols-2 gap-4">
+              <TemperatureChart data={weather} />
+              <DaylightChart data={weather} />
+            </div>
+            {/* Row 3: Precipitation + Scripture heatmap */}
+            <div className="grid grid-cols-2 gap-4">
+              <PrecipitationChart data={weather} />
               <ActivityHeatmap
                 title="Scripture Reading"
                 activeDates={scriptureDates}
                 color="#4ade80"
                 onDateClick={date => openModal('scripture', date)}
               />
-              <ActivityHeatmap
-                title="Personal"
-                activeDates={personalDates}
-                color="#818cf8"
-                onDateClick={date => openModal('personal', date)}
-              />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <MoodChart data={mood} />
-              <MoodGrid data={mood} />
-              <TemperatureChart data={weather} />
-              <DaylightChart data={weather} />
-              <PrecipitationChart data={weather} />
+            {/* Scripture coverage */}
+            <ScriptureCoverageMap readings={scriptureReadings} />
+            {/* Row 4: Markets */}
+            <div className="grid grid-cols-2 gap-4">
               <VOOChart data={market} />
               <VXXChart data={market} />
             </div>
+            {/* Personal heatmap */}
+            <ActivityHeatmap
+              title="Personal"
+              activeDates={personalDates}
+              color="#818cf8"
+              onDateClick={date => openModal('personal', date)}
+            />
           </div>
         )}
 
