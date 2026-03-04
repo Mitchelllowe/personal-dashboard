@@ -123,8 +123,33 @@ export default function Dashboard() {
     const hh = String(now.getHours()).padStart(2, '0')
     const mm = String(now.getMinutes()).padStart(2, '0')
     setModalTime(`${hh}:${mm}`)
-    setModalSelections([])
     setModalSaving(false)
+
+    if (type === 'scripture') {
+      // Find all readings for this date and merge their selections
+      const existing = scriptureReadings.filter(r =>
+        new Date(r.read_at).toLocaleDateString('en-CA') === date
+      )
+      if (existing.length > 0) {
+        const merged = {}
+        for (const r of existing) {
+          for (const sel of (r.selections ?? [])) {
+            if (!merged[sel.book]) merged[sel.book] = new Set()
+            for (const ch of (sel.chapters ?? [])) merged[sel.book].add(ch)
+          }
+        }
+        setModalSelections(
+          Object.entries(merged).map(([book, chSet]) => ({
+            book,
+            chapters: Array.from(chSet).sort((a, b) => a - b),
+          }))
+        )
+      } else {
+        setModalSelections([])
+      }
+    } else {
+      setModalSelections([])
+    }
   }
 
   async function saveScripture() {

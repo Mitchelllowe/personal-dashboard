@@ -265,6 +265,28 @@ function bookAbbrev(name) {
   return name.slice(0, 3)
 }
 
+// Greedy row packing: split books into numRows rows, balancing chapter totals per row
+function computeRows(books, numRows) {
+  const total = books.reduce((s, b) => s + b.chapters, 0)
+  const target = total / numRows
+  const rows = []
+  let current = []
+  let currentTotal = 0
+
+  for (const book of books) {
+    if (current.length > 0 && currentTotal + book.chapters / 2 > target && rows.length < numRows - 1) {
+      rows.push({ books: current, total: currentTotal })
+      current = [book]
+      currentTotal = book.chapters
+    } else {
+      current.push(book)
+      currentTotal += book.chapters
+    }
+  }
+  if (current.length) rows.push({ books: current, total: currentTotal })
+  return rows
+}
+
 export function ScriptureCoverageMap({ readings }) {
   const bookStats = {}
   for (const r of readings) {
@@ -279,32 +301,69 @@ export function ScriptureCoverageMap({ readings }) {
 
   const now = new Date()
 
-  function BookTile({ book }) {
+  function tileStyle(book) {
     const stats = bookStats[book.name]
     const chaptersRead = stats ? stats.chaptersRead.size : 0
     const pct = chaptersRead / book.chapters
     const daysSince = stats?.lastReadAt ? (now - stats.lastReadAt) / 86400000 : Infinity
     const isRecent = daysSince <= 90
+    return {
+      bg:     pct > 0 && isRecent ? '#052e16' : '#111',
+      border: pct === 0 ? '#1f1f1f' : isRecent ? SCRIPTURE_ACCENT : '#166534',
+      text:   pct === 0 ? '#404040' : isRecent ? SCRIPTURE_ACCENT : '#4ade8066',
+      bar:    isRecent ? SCRIPTURE_ACCENT : '#166534',
+      pct,
+      chaptersRead,
+    }
+  }
 
-    const bg     = pct > 0 && isRecent ? '#052e16' : '#111'
-    const border = pct === 0 ? '#1f1f1f' : isRecent ? SCRIPTURE_ACCENT : '#166534'
-    const text   = pct === 0 ? '#404040' : isRecent ? SCRIPTURE_ACCENT : '#4ade8066'
-    const bar    = isRecent ? SCRIPTURE_ACCENT : '#166534'
+  function TreemapSection({ books, numRows, containerHeight }) {
+    const rows = computeRows(books, numRows)
+    const sectionTotal = books.reduce((s, b) => s + b.chapters, 0)
 
     return (
-      <div
-        title={`${book.name} — ${chaptersRead}/${book.chapters} ch`}
-        style={{ backgroundColor: bg, border: `1px solid ${border}`, borderRadius: 4 }}
-        className="flex flex-col items-center justify-center py-1 gap-0.5 cursor-default select-none"
-      >
-        <span style={{ color: text, fontSize: 10, fontFamily: 'monospace', lineHeight: 1 }}>
-          {bookAbbrev(book.name)}
-        </span>
-        <div style={{ width: '80%', height: 2, backgroundColor: '#262626', borderRadius: 1 }}>
-          {pct > 0 && (
-            <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', backgroundColor: bar, borderRadius: 1 }} />
-          )}
-        </div>
+      <div style={{ height: containerHeight, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {rows.map((row, ri) => {
+          const rowHeight = Math.round((row.total / sectionTotal) * containerHeight)
+          return (
+            <div key={ri} style={{ display: 'flex', flex: `0 0 ${rowHeight}px`, gap: 2 }}>
+              {row.books.map(book => {
+                const widthPct = (book.chapters / row.total) * 100
+                const { bg, border, text, bar, pct, chaptersRead } = tileStyle(book)
+                return (
+                  <div
+                    key={book.name}
+                    title={`${book.name} — ${chaptersRead}/${book.chapters} ch`}
+                    style={{
+                      flex: `0 0 calc(${widthPct}% - 1px)`,
+                      backgroundColor: bg,
+                      border: `1px solid ${border}`,
+                      borderRadius: 3,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      cursor: 'default',
+                      userSelect: 'none',
+                      gap: 2,
+                      padding: '2px 2px',
+                    }}
+                  >
+                    <span style={{ color: text, fontSize: 9, fontFamily: 'monospace', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                      {bookAbbrev(book.name)}
+                    </span>
+                    <div style={{ width: '75%', height: 2, backgroundColor: '#262626', borderRadius: 1, flexShrink: 0 }}>
+                      {pct > 0 && (
+                        <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', backgroundColor: bar, borderRadius: 1 }} />
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })}
       </div>
     )
   }
@@ -314,15 +373,11 @@ export function ScriptureCoverageMap({ readings }) {
       <div className="space-y-4">
         <div>
           <p className="text-[10px] text-neutral-600 uppercase tracking-widest mb-2">Old Testament</p>
-          <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
-            {OT_BOOKS.map(book => <BookTile key={book.name} book={book} />)}
-          </div>
+          <TreemapSection books={OT_BOOKS} numRows={6} containerHeight={240} />
         </div>
         <div>
           <p className="text-[10px] text-neutral-600 uppercase tracking-widest mb-2">New Testament</p>
-          <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
-            {NT_BOOKS.map(book => <BookTile key={book.name} book={book} />)}
-          </div>
+          <TreemapSection books={NT_BOOKS} numRows={4} containerHeight={130} />
         </div>
         <div className="flex items-center gap-5 pt-1 flex-wrap">
           <div className="flex items-center gap-1.5">

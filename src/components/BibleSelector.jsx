@@ -1,9 +1,16 @@
+import { useState } from 'react'
 import { BIBLE_BOOKS } from '../lib/bible'
 
 // value: [{ book: string, chapters: number[] }]
 // onChange: (newValue) => void
 export default function BibleSelector({ value, onChange }) {
+  const [search, setSearch] = useState('')
+
   const selectedMap = Object.fromEntries(value.map(s => [s.book, new Set(s.chapters)]))
+
+  const filtered = BIBLE_BOOKS.filter(b =>
+    b.name.toLowerCase().includes(search.toLowerCase()) || !!selectedMap[b.name]
+  )
 
   function toggleBook(bookName) {
     if (selectedMap[bookName]) {
@@ -24,7 +31,14 @@ export default function BibleSelector({ value, onChange }) {
 
   return (
     <div className="space-y-2">
-      {BIBLE_BOOKS.map(({ name, chapters }) => {
+      <input
+        type="text"
+        placeholder="Search books…"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500"
+      />
+      {filtered.map(({ name, chapters }) => {
         const isSelected = !!selectedMap[name]
         const selectedChapters = selectedMap[name] ?? new Set()
 
