@@ -1,6 +1,6 @@
 import {
   ResponsiveContainer, LineChart, BarChart, AreaChart,
-  Line, Bar, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  Line, Bar, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts'
 import { BIBLE_BOOKS } from '../lib/bible'
 
@@ -51,8 +51,10 @@ export function ActivityHeatmap({ title, activeDates, color, onDateClick }) {
   )
 }
 
-const MORNING_COLOR = '#60a5fa'
-const EVENING_COLOR = '#c084fc'
+const MORNING_COLOR        = '#60a5fa'
+const EVENING_COLOR        = '#c084fc'
+const MORNING_ENERGY_COLOR = '#86efac'
+const EVENING_ENERGY_COLOR = '#4ade80'
 
 export function MoodGrid({ data }) {
   const today = new Date()
@@ -65,7 +67,13 @@ export function MoodGrid({ data }) {
     d.setDate(today.getDate() - 27 + i)
     const dateStr = d.toLocaleDateString('en-CA')
     const entry = byDate[dateStr] ?? {}
-    return { day: d.getDate(), morning: entry.morning ?? null, evening: entry.evening ?? null }
+    return {
+      day: d.getDate(),
+      morning:        entry.morning         ?? null,
+      evening:        entry.evening         ?? null,
+      morningEnergy:  entry.morning_energy  ?? null,
+      eveningEnergy:  entry.evening_energy  ?? null,
+    }
   })
 
   return (
@@ -79,27 +87,56 @@ export function MoodGrid({ data }) {
               border: '1px solid #1e1e1e',
               borderRadius: 3,
               position: 'relative',
-              aspectRatio: '3/4',
+              aspectRatio: '3/5',
             }}
           >
+            {/* Date */}
             <span style={{
               position: 'absolute',
               top: 3,
               left: '50%',
               transform: 'translateX(-50%)',
-              fontSize: 12,
+              fontSize: 10,
               color: '#737373',
               fontVariantNumeric: 'tabular-nums',
               whiteSpace: 'nowrap',
             }}>
               {cell.day}
             </span>
+            {/* Energy row */}
+            {cell.morningEnergy != null && (
+              <span style={{
+                position: 'absolute',
+                top: '38%',
+                left: 3,
+                fontSize: 12,
+                color: MORNING_ENERGY_COLOR,
+                fontVariantNumeric: 'tabular-nums',
+                fontWeight: 600,
+              }}>
+                {cell.morningEnergy}
+              </span>
+            )}
+            {cell.eveningEnergy != null && (
+              <span style={{
+                position: 'absolute',
+                top: '38%',
+                right: 3,
+                fontSize: 12,
+                color: EVENING_ENERGY_COLOR,
+                fontVariantNumeric: 'tabular-nums',
+                fontWeight: 600,
+              }}>
+                {cell.eveningEnergy}
+              </span>
+            )}
+            {/* Mood row */}
             {cell.morning != null && (
               <span style={{
                 position: 'absolute',
                 bottom: 3,
-                left: 4,
-                fontSize: 15,
+                left: 3,
+                fontSize: 12,
                 color: MORNING_COLOR,
                 fontVariantNumeric: 'tabular-nums',
                 fontWeight: 600,
@@ -111,8 +148,8 @@ export function MoodGrid({ data }) {
               <span style={{
                 position: 'absolute',
                 bottom: 3,
-                right: 4,
-                fontSize: 15,
+                right: 3,
+                fontSize: 12,
                 color: EVENING_COLOR,
                 fontVariantNumeric: 'tabular-nums',
                 fontWeight: 600,
@@ -154,17 +191,40 @@ function Card({ title, children }) {
   )
 }
 
-const margin = { top: 4, right: 8, bottom: 0, left: -16 }
+const margin    = { top: 4, right: 8,  bottom: 0, left: -16 }
+const marginRef = { top: 4, right: 52, bottom: 0, left: -16 }
+
+function avg7(data, key) {
+  const vals = data.map(d => d[key]).filter(v => v != null)
+  const last7 = vals.slice(-7)
+  if (!last7.length) return null
+  return Math.round((last7.reduce((s, v) => s + v, 0) / last7.length) * 10) / 10
+}
+
+function refLine(y, color) {
+  if (y == null) return null
+  return (
+    <ReferenceLine
+      y={y}
+      stroke={color}
+      strokeDasharray="4 3"
+      strokeOpacity={0.5}
+      label={{ value: y, fill: color, fontSize: 10, position: 'right', dx: 6 }}
+    />
+  )
+}
 
 export function MoodChart({ data }) {
   return (
     <Card title="Mood">
       <ResponsiveContainer width="100%" height={160}>
-        <LineChart data={data} margin={margin}>
+        <LineChart data={data} margin={marginRef}>
           <CartesianGrid stroke={GRID} />
           <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
           <YAxis domain={[1, 10]} ticks={[1,3,5,7,10]} tick={axis} tickLine={false} axisLine={false} />
           <Tooltip {...tip} />
+          {refLine(avg7(data, 'morning'), '#60a5fa')}
+          {refLine(avg7(data, 'evening'), '#c084fc')}
           <Line type="monotone" dataKey="morning" stroke="#60a5fa" strokeWidth={1.5} dot={false} name="Morning" connectNulls />
           <Line type="monotone" dataKey="evening" stroke="#c084fc" strokeWidth={1.5} dot={false} name="Evening" connectNulls />
         </LineChart>
@@ -248,6 +308,231 @@ export function VXXChart({ data }) {
           <YAxis domain={['auto', 'auto']} tick={axis} tickLine={false} axisLine={false} />
           <Tooltip {...tip} />
           <Line type="monotone" dataKey="VXX" stroke="#f87171" strokeWidth={1.5} dot={false} name="Close" connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+export function OuraChart({ data }) {
+  return (
+    <Card title="Oura Recovery">
+      <ResponsiveContainer width="100%" height={180}>
+        <LineChart data={data} margin={{ ...marginRef, bottom: 16 }}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
+          <YAxis domain={[dataMin => Math.min(50, dataMin), 100]} tick={axis} tickLine={false} axisLine={false} />
+          <Tooltip {...tip} />
+          <Legend wrapperStyle={legendStyle} iconType="plainline" iconSize={12} />
+          {refLine(avg7(data, 'sleep_score'),    '#fbbf24')}
+          {refLine(avg7(data, 'readiness_score'), '#34d399')}
+          {refLine(avg7(data, 'activity_score'),  '#f472b6')}
+          <Line type="monotone" dataKey="sleep_score"    stroke="#fbbf24" strokeWidth={1.5} dot={false} name="Sleep"     connectNulls />
+          <Line type="monotone" dataKey="readiness_score" stroke="#34d399" strokeWidth={1.5} dot={false} name="Readiness" connectNulls />
+          <Line type="monotone" dataKey="activity_score" stroke="#f472b6" strokeWidth={1.5} dot={false} name="Activity"  connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+const legendStyle = { fontSize: 11, color: '#737373' }
+
+export function OuraSleepChart({ data }) {
+  return (
+    <Card title="Sleep Stages (hrs)">
+      <ResponsiveContainer width="100%" height={180}>
+        <LineChart data={data} margin={{ ...marginRef, bottom: 16 }}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
+          <YAxis domain={[0, 'auto']} tick={axis} tickLine={false} axisLine={false} />
+          <Tooltip {...tip} formatter={(v) => v != null ? `${v}h` : '—'} />
+          <Legend wrapperStyle={legendStyle} iconType="plainline" iconSize={12} />
+          {refLine(avg7(data, 'total_sleep_hours'), '#e5e5e5')}
+          {refLine(avg7(data, 'light_sleep_hours'), '#38bdf8')}
+          {refLine(avg7(data, 'deep_sleep_hours'),  '#6366f1')}
+          {refLine(avg7(data, 'rem_sleep_hours'),   '#a855f7')}
+          <Line type="monotone" dataKey="total_sleep_hours" stroke="#e5e5e5" strokeWidth={1.5} dot={false} name="Total" connectNulls />
+          <Line type="monotone" dataKey="light_sleep_hours" stroke="#38bdf8" strokeWidth={1.5} dot={false} name="Light" connectNulls />
+          <Line type="monotone" dataKey="deep_sleep_hours"  stroke="#6366f1" strokeWidth={1.5} dot={false} name="Deep"  connectNulls />
+          <Line type="monotone" dataKey="rem_sleep_hours"   stroke="#a855f7" strokeWidth={1.5} dot={false} name="REM"   connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+export function OuraHRVChart({ data }) {
+  return (
+    <Card title="HRV (ms)">
+      <ResponsiveContainer width="100%" height={160}>
+        <LineChart data={data} margin={marginRef}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
+          <YAxis domain={['auto', 'auto']} tick={axis} tickLine={false} axisLine={false} />
+          <Tooltip {...tip} formatter={(v) => v != null ? `${v} ms` : '—'} />
+          {refLine(avg7(data, 'average_hrv'), '#818cf8')}
+          <Line type="monotone" dataKey="average_hrv" stroke="#818cf8" strokeWidth={1.5} dot={false} name="HRV" connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+export function OuraHRChart({ data }) {
+  return (
+    <Card title="Resting HR (bpm)">
+      <ResponsiveContainer width="100%" height={160}>
+        <LineChart data={data} margin={marginRef}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
+          <YAxis domain={['auto', 'auto']} tick={axis} tickLine={false} axisLine={false} />
+          <Tooltip {...tip} formatter={(v) => v != null ? `${v} bpm` : '—'} />
+          {refLine(avg7(data, 'average_heart_rate'), '#fb923c')}
+          <Line type="monotone" dataKey="average_heart_rate" stroke="#fb923c" strokeWidth={1.5} dot={false} name="Resting HR" connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+export function OuraStressChart({ data }) {
+  return (
+    <Card title="Stress vs Recovery (min)">
+      <ResponsiveContainer width="100%" height={160}>
+        <LineChart data={data} margin={marginRef}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
+          <YAxis tick={axis} tickLine={false} axisLine={false} />
+          <Tooltip {...tip} formatter={(v) => v != null ? `${v} min` : '—'} />
+          {refLine(avg7(data, 'stress_high_min'), '#f87171')}
+          {refLine(avg7(data, 'recovery_high_min'), '#34d399')}
+          <Line type="monotone" dataKey="stress_high_min"    stroke="#f87171" strokeWidth={1.5} dot={false} name="High Stress" connectNulls />
+          <Line type="monotone" dataKey="recovery_high_min"  stroke="#34d399" strokeWidth={1.5} dot={false} name="Recovery"    connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+export function OuraStepsChart({ data }) {
+  return (
+    <Card title="Steps">
+      <ResponsiveContainer width="100%" height={160}>
+        <BarChart data={data} margin={marginRef}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
+          <YAxis tick={axis} tickLine={false} axisLine={false} />
+          <Tooltip {...tip} formatter={(v) => v != null ? v.toLocaleString() : '—'} />
+          {refLine(avg7(data, 'steps'), '#4ade80')}
+          <Bar dataKey="steps" fill="#4ade80" fillOpacity={0.7} radius={[2, 2, 0, 0]} name="Steps" />
+        </BarChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+export function OuraCaloriesChart({ data }) {
+  return (
+    <Card title="Active Calories">
+      <ResponsiveContainer width="100%" height={160}>
+        <BarChart data={data} margin={marginRef}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
+          <YAxis tick={axis} tickLine={false} axisLine={false} />
+          <Tooltip {...tip} formatter={(v) => v != null ? `${v} kcal` : '—'} />
+          {refLine(avg7(data, 'active_calories'), '#fb923c')}
+          <Bar dataKey="active_calories" fill="#fb923c" fillOpacity={0.7} radius={[2, 2, 0, 0]} name="Calories" />
+        </BarChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+export function OuraActivityZonesChart({ data }) {
+  return (
+    <Card title="Activity Zones (min)">
+      <ResponsiveContainer width="100%" height={180}>
+        <LineChart data={data} margin={{ ...marginRef, bottom: 16 }}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
+          <YAxis tick={axis} tickLine={false} axisLine={false} />
+          <Tooltip {...tip} formatter={(v) => v != null ? `${v} min` : '—'} />
+          <Legend wrapperStyle={legendStyle} iconType="plainline" iconSize={12} />
+          {refLine(avg7(data, 'high_activity_min'),   '#f87171')}
+          {refLine(avg7(data, 'medium_activity_min'), '#fb923c')}
+          <Line type="monotone" dataKey="high_activity_min"   stroke="#f87171" strokeWidth={1.5} dot={false} name="High"   connectNulls />
+          <Line type="monotone" dataKey="medium_activity_min" stroke="#fb923c" strokeWidth={1.5} dot={false} name="Medium" connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+export function OuraSedentaryChart({ data }) {
+  return (
+    <Card title="Sedentary Time (hrs)">
+      <ResponsiveContainer width="100%" height={160}>
+        <LineChart data={data} margin={marginRef}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
+          <YAxis tick={axis} tickLine={false} axisLine={false} />
+          <Tooltip {...tip} formatter={(v) => v != null ? `${v}h` : '—'} />
+          {refLine(avg7(data, 'sedentary_hours'), '#a3a3a3')}
+          <Line type="monotone" dataKey="sedentary_hours" stroke="#a3a3a3" strokeWidth={1.5} dot={false} name="Sedentary" connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+export function EnergyChart({ data }) {
+  return (
+    <Card title="Energy">
+      <ResponsiveContainer width="100%" height={160}>
+        <LineChart data={data} margin={marginRef}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
+          <YAxis domain={[1, 10]} ticks={[1,3,5,7,10]} tick={axis} tickLine={false} axisLine={false} />
+          <Tooltip {...tip} />
+          {refLine(avg7(data, 'morning_energy'), '#86efac')}
+          {refLine(avg7(data, 'evening_energy'), '#4ade80')}
+          <Line type="monotone" dataKey="morning_energy" stroke="#86efac" strokeWidth={1.5} dot={false} name="Morning" connectNulls />
+          <Line type="monotone" dataKey="evening_energy" stroke="#4ade80" strokeWidth={1.5} dot={false} name="Evening" connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+export function WorkoutChart({ data }) {
+  return (
+    <Card title="Workout (min)">
+      <ResponsiveContainer width="100%" height={160}>
+        <BarChart data={data} margin={marginRef}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
+          <YAxis tick={axis} tickLine={false} axisLine={false} />
+          <Tooltip {...tip} formatter={(v, _, props) => [`${v} min`, props?.payload?.activity ?? 'Workout']} />
+          {refLine(avg7(data, 'minutes'), '#fbbf24')}
+          <Bar dataKey="minutes" fill="#fbbf24" fillOpacity={0.7} radius={[2, 2, 0, 0]} name="Minutes" />
+        </BarChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+export function MeditationChart({ data }) {
+  return (
+    <Card title="Meditation (min)">
+      <ResponsiveContainer width="100%" height={160}>
+        <LineChart data={data} margin={margin}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
+          <YAxis domain={[0, 'auto']} tick={axis} tickLine={false} axisLine={false} />
+          <Tooltip {...tip} formatter={(v) => v != null ? `${v} min` : '—'} />
+          {refLine(avg7(data, 'minutes'), '#2dd4bf')}
+          <Line type="monotone" dataKey="minutes" stroke="#2dd4bf" strokeWidth={1.5} dot={false} name="Minutes" connectNulls />
         </LineChart>
       </ResponsiveContainer>
     </Card>

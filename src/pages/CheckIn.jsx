@@ -5,6 +5,7 @@ const DEFAULT_ZIP = '02163'
 
 export default function CheckIn() {
   const [rating, setRating] = useState(5)
+  const [energy, setEnergy] = useState(5)
   const [zipCode, setZipCode] = useState(DEFAULT_ZIP)
   const [editingZip, setEditingZip] = useState(false)
   const [pendingZip, setPendingZip] = useState('')
@@ -60,9 +61,13 @@ export default function CheckIn() {
     await supabase
       .from('check_ins')
       .upsert(
-        { user_id: session.user.id, date: today, type, mood_rating: rating },
+        { user_id: session.user.id, date: today, type, mood_rating: rating, energy_rating: energy },
         { onConflict: 'user_id,date,type' }
       )
+
+    if (type === 'morning') {
+      supabase.functions.invoke('fetch-oura-data', { body: { days: 1 } })
+    }
 
     navigate('/')
   }
@@ -83,7 +88,7 @@ export default function CheckIn() {
           <span className="text-3xl text-neutral-600 ml-1">/10</span>
         </div>
 
-        {/* Slider */}
+        {/* Mood slider */}
         <div className="space-y-3">
           <input
             type="range"
@@ -97,6 +102,33 @@ export default function CheckIn() {
           <div className="flex justify-between text-xs text-neutral-600 px-0.5">
             <span>1</span>
             <span>10</span>
+          </div>
+        </div>
+
+        {/* Energy */}
+        <div className="space-y-4">
+          <div className="flex items-baseline justify-between">
+            <p className="text-sm text-neutral-500 uppercase tracking-wider">Energy</p>
+            <div className="leading-none">
+              <span className="text-5xl font-extralight tabular-nums text-green-400">{energy}</span>
+              <span className="text-xl text-neutral-600 ml-1">/10</span>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <input
+              type="range"
+              min={1}
+              max={10}
+              step={1}
+              value={energy}
+              onChange={e => setEnergy(Number(e.target.value))}
+              className="w-full h-1.5 cursor-pointer"
+              style={{ accentColor: '#4ade80' }}
+            />
+            <div className="flex justify-between text-xs text-neutral-600 px-0.5">
+              <span>1</span>
+              <span>10</span>
+            </div>
           </div>
         </div>
 
