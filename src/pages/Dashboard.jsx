@@ -74,7 +74,9 @@ export default function Dashboard() {
   const [modalMinutes, setModalMinutes] = useState(10)
   const [modalWorkoutActivity, setModalWorkoutActivity] = useState('Weight Training')
   const [modalWorkoutIntensity, setModalWorkoutIntensity] = useState('moderate')
+  const [modalWorkoutDate, setModalWorkoutDate] = useState('')
   const [modalSaving, setModalSaving] = useState(false)
+  const [workoutPanel, setWorkoutPanel] = useState(null) // { date, sessions }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -127,7 +129,7 @@ export default function Dashboard() {
           .order('logged_at'),
         supabase
           .from('workout_sessions')
-          .select('day, activity, duration_seconds, intensity, source')
+          .select('id, day, activity, duration_seconds, intensity, source')
           .gte('day', fromDate30)
           .order('day'),
       ])
@@ -163,11 +165,13 @@ export default function Dashboard() {
       // Personal — dates already stored as local date strings
       setPersonalDates(new Set((personalRes.data ?? []).map(r => r.date)))
 
-      // Workouts — sum minutes per day
+      // Workouts — sum minutes per day, keep session list for detail panel
       const workoutByDate = {}
       for (const row of workoutRes.data ?? []) {
-        if (!workoutByDate[row.day]) workoutByDate[row.day] = { date: row.day, minutes: 0, activity: row.activity }
-        workoutByDate[row.day].minutes += Math.round((row.duration_seconds ?? 0) / 60)
+        if (!workoutByDate[row.day]) workoutByDate[row.day] = { date: row.day, minutes: 0, sessions: [] }
+        const mins = Math.round((row.duration_seconds ?? 0) / 60)
+        workoutByDate[row.day].minutes += mins
+        workoutByDate[row.day].sessions.push({ id: row.id, activity: row.activity, minutes: mins, intensity: row.intensity, source: row.source })
       }
       setWorkouts(Object.values(workoutByDate).sort((a, b) => a.date.localeCompare(b.date)))
 
@@ -216,6 +220,7 @@ export default function Dashboard() {
     setModalMinutes(10)
     setModalWorkoutActivity('Weight Training')
     setModalWorkoutIntensity('moderate')
+    setModalWorkoutDate(date)
     setModalSaving(false)
 
     if (type === 'scripture') {
@@ -252,23 +257,24 @@ export default function Dashboard() {
   async function saveWorkout() {
     setModalSaving(true)
     const { data: { session } } = await supabase.auth.getSession()
-    const { error } = await supabase.from('workout_sessions').insert({
+    const { data: inserted, error } = await supabase.from('workout_sessions').insert({
       user_id:          session.user.id,
       source:           'manual',
-      day:              editModal.date,
+      day:              modalWorkoutDate,
       activity:         modalWorkoutActivity,
       duration_seconds: modalMinutes * 60,
       intensity:        modalWorkoutIntensity,
-    })
+    }).select('id').single()
     if (error) {
       alert(`Save failed: ${error.message}`)
       setModalSaving(false)
       return
     }
+    const newSession = { id: inserted?.id, activity: modalWorkoutActivity, minutes: modalMinutes, intensity: modalWorkoutIntensity, source: 'manual' }
     setWorkouts(prev => {
-      const existing = prev.find(d => d.date === editModal.date)
-      if (existing) return prev.map(d => d.date === editModal.date ? { ...d, minutes: d.minutes + modalMinutes } : d)
-      return [...prev, { date: editModal.date, minutes: modalMinutes, activity: modalWorkoutActivity }].sort((a, b) => a.date.localeCompare(b.date))
+      const existing = prev.find(d => d.date === modalWorkoutDate)
+      if (existing) return prev.map(d => d.date === modalWorkoutDate ? { ...d, minutes: d.minutes + modalMinutes, sessions: [...d.sessions, newSession] } : d)
+      return [...prev, { date: modalWorkoutDate, minutes: modalMinutes, sessions: [newSession] }].sort((a, b) => a.date.localeCompare(b.date))
     })
     setEditModal(null)
   }
@@ -374,7 +380,7 @@ export default function Dashboard() {
               <>
                 <OuraChart data={oura} />
                 <OuraSleepChart data={oura} />
-                <WorkoutChart data={workouts} />
+                <WorkoutChart data={workouts} onBarClick={(d) => setWorkoutPanel({ date: d.date, sessions: d.sessions ?? [] })} />
                 <div className="grid grid-cols-2 gap-4">
                   <OuraStressChart data={oura} />
                   <OuraHRVChart data={oura} />
@@ -495,7 +501,15 @@ export default function Dashboard() {
                     <h2 className="text-base font-semibold">Log Workout</h2>
                     <button onClick={() => setEditModal(null)} className="text-neutral-500 hover:text-neutral-300 transition-colors text-lg leading-none">✕</button>
                   </div>
-                  <p className="text-sm text-neutral-500">{fmtDate(editModal.date)}</p>
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1.5">Date</label>
+                    <input
+                      type="date"
+                      value={modalWorkoutDate}
+                      onChange={e => setModalWorkoutDate(e.target.value)}
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-neutral-500"
+                    />
+                  </div>
                   <div>
                     <label className="block text-xs text-neutral-500 mb-1.5">Activity</label>
                     <select
@@ -608,6 +622,50 @@ export default function Dashboard() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Workout day detail panel */}
+        {workoutPanel && (
+          <div
+            className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4"
+            onClick={() => setWorkoutPanel(null)}
+          >
+            <div
+              className="bg-neutral-900 rounded-2xl p-6 w-full max-w-sm space-y-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold">{fmtDate(workoutPanel.date)}</h2>
+                <button onClick={() => setWorkoutPanel(null)} className="text-neutral-500 hover:text-neutral-300 transition-colors text-lg leading-none">✕</button>
+              </div>
+              {workoutPanel.sessions.length === 0 ? (
+                <p className="text-sm text-neutral-500">No sessions recorded.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {workoutPanel.sessions.map((s, i) => (
+                    <li key={s.id ?? i} className="flex items-center justify-between bg-neutral-800 rounded-xl px-4 py-3">
+                      <div>
+                        <p className="text-sm font-medium text-neutral-100">{s.activity}</p>
+                        <p className="text-xs text-neutral-500 capitalize">{s.intensity ?? '—'}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-neutral-300">{s.minutes} min</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${s.source === 'oura' ? 'bg-amber-900/50 text-amber-400' : 'bg-neutral-700 text-neutral-400'}`}>
+                          {s.source}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                onClick={() => { setWorkoutPanel(null); openModal('workout', workoutPanel.date) }}
+                className="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-sm font-medium transition-colors"
+              >
+                Add session
+              </button>
             </div>
           </div>
         )}

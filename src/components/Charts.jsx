@@ -321,7 +321,7 @@ export function OuraChart({ data }) {
         <LineChart data={data} margin={{ ...marginRef, bottom: 16 }}>
           <CartesianGrid stroke={GRID} />
           <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
-          <YAxis domain={[dataMin => Math.min(50, dataMin), 100]} tick={axis} tickLine={false} axisLine={false} />
+          <YAxis domain={[dataMin => Math.min(65, dataMin), 100]} tick={axis} tickLine={false} axisLine={false} />
           <Tooltip {...tip} />
           <Legend wrapperStyle={legendStyle} iconType="plainline" iconSize={12} />
           {refLine(avg7(data, 'sleep_score'),    '#fbbf24')}
@@ -505,7 +505,7 @@ export function EnergyChart({ data }) {
   )
 }
 
-export function WorkoutChart({ data }) {
+export function WorkoutChart({ data, onBarClick }) {
   return (
     <Card title="Workout (min)">
       <ResponsiveContainer width="100%" height={160}>
@@ -513,9 +513,17 @@ export function WorkoutChart({ data }) {
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis dataKey="date" tickFormatter={fmt} tick={axis} tickLine={false} />
           <YAxis tick={axis} tickLine={false} axisLine={false} />
-          <Tooltip {...tip} formatter={(v, _, props) => [`${v} min`, props?.payload?.activity ?? 'Workout']} />
+          <Tooltip {...tip} formatter={(v) => [`${v} min`, 'Total']} />
           {refLine(avg7(data, 'minutes'), '#fbbf24')}
-          <Bar dataKey="minutes" fill="#fbbf24" fillOpacity={0.7} radius={[2, 2, 0, 0]} name="Minutes" />
+          <Bar
+            dataKey="minutes"
+            fill="#fbbf24"
+            fillOpacity={0.7}
+            radius={[2, 2, 0, 0]}
+            name="Minutes"
+            onClick={onBarClick ? (barData) => onBarClick(barData) : undefined}
+            style={onBarClick ? { cursor: 'pointer' } : undefined}
+          />
         </BarChart>
       </ResponsiveContainer>
     </Card>
